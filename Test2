@@ -5,20 +5,20 @@ local CoreGui = game:GetService("CoreGui")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 
--- Создание UI
+-- Создание графического интерфейса
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = CoreGui
-ScreenGui.Name = "InvisGui"
+ScreenGui.Name = "MM2InvisFinalFixGui"
 
 local ToggleButton = Instance.new("TextButton")
 ToggleButton.Parent = ScreenGui
-ToggleButton.Size = UDim2.new(0, 160, 0, 50)
+ToggleButton.Size = UDim2.new(0, 170, 0, 50)
 ToggleButton.Position = UDim2.new(0.05, 0, 0.4, 0)
-ToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSansBold
-ToggleButton.TextSize = 16
-ToggleButton.Text = "Стать невидимым"
+ToggleButton.TextSize = 15
+ToggleButton.Text = "ММ2 Инвиз + Годмод"
 ToggleButton.Active = true
 ToggleButton.Draggable = true
 
@@ -26,79 +26,125 @@ local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 8)
 UICorner.Parent = ToggleButton
 
--- Переменные состояния
-local invisible = false
+local isInvis = false
 local clone = nil
-local loopConn = nil
+local loopConnection = nil
+local godConnection = nil
 
--- Функция включения невидимости
-local function startInvis()
-    character = player.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-    
-    character.Archivable = true
-    clone = character:Clone()
-    clone.Parent = workspace
-    
-    -- Делаем клона полупрозрачным для себя
-    for _, part in pairs(clone:GetDescendants()) do
-        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-            part.Transparency = 0.5
-            part.CanCollide = false
-        elseif part:IsA("Decal") then
-            part.Transparency = 0.5
-        end
-    end
-    
-    -- Прячем оригинального персонажа для сервера (опускаем вниз)
-    -- Физика перемещения HumanoidRootPart реплицируется на сервер!
-    loopConn = RunService.Heartbeat:Connect(function()
-        if character and character:FindFirstChild("HumanoidRootPart") and clone and clone:FindFirstChild("HumanoidRootPart") then
-            -- Переносим управление от клона к оригиналу, но оригинал топим под текстуры
-            local realRoot = character.HumanoidRootPart
-            local cloneRoot = clone.HumanoidRootPart
+-- Функция проверки объектов рядом с полупрозрачным клоном
+local function checkItems(cloneRoot)
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            -- 1. Проверка монеты
+            if obj.Name == "Coin_Server" then
+                if (obj.Position - cloneRoot.Position).Magnitude < 5 then
+                    return obj
+                end
+            end
             
-            -- Держим оригинал на 500 оригинальных единиц ниже клона (для сервера вы под землей)
-            realRoot.CFrame = cloneRoot.CFrame * CFrame.new(0, -500, 0)
-            realRoot.Velocity = Vector3.new(0, 0, 0)
+            -- 2. Проверка упавшего пистолета (HumanoidRootPart от пустой модельки оружия)
+            if obj.Name == "HumanoidRootPart" and obj.Parent then
+                local parentName = obj.Parent.Name:lower()
+                if parentName:find("gun") or obj.Parent:FindFirstChild("Gun") then
+                    if (obj.Position - cloneRoot.Position).Magnitude < 5 then
+                        return obj
+                    end
+                end
+            end
         end
-    end)
-    
-    -- Переключаем камеру на клона
-    workspace.CurrentCamera.CameraSubject = clone:FindFirstChild("Humanoid")
-    
-    -- Управление клоном (синхронизация движения)
-    -- Нажимаем клавиши на клоне, когда двигаемся
-    player.Character = clone
-end
-
--- Функция выключения невидимости (БЕЗ СМЕРТИ)
-local function stopInvis()
-    if loopConn then loopConn:Disconnect() end
-    
-    player.Character = character
-    workspace.CurrentCamera.CameraSubject = character:FindFirstChild("Humanoid")
-    
-    if character and character:FindFirstChild("HumanoidRootPart") and clone and clone:FindFirstChild("HumanoidRootPart") then
-        -- Возвращаем оригинал на место клона
-        character.HumanoidRootPart.CFrame = clone.HumanoidRootPart.CFrame
     end
-    
-    if clone then
-        clone:Destroy()
-        clone = nil
-    end
+    return nil
 end
 
 ToggleButton.MouseButton1Click:Connect(function()
-    invisible = not invisible
-    if invisible then
-        ToggleButton.Text = "Сделать видимым"
+    character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+    
+    isInvis = not isInvis
+    
+    if isInvis then
+        ToggleButton.Text = "Выключить Хаки"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        startInvis()
+        
+        -- Создаем локального полупрозрачного клона
+        character.Archivable = true
+        clone = character:Clone()
+        clone.Parent = workspace
+        
+        for _, part in pairs(clone:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                part.Transparency = 0.5
+                part.CanCollide = false
+            elseif part:IsA("Decal") then
+                part.Transparency = 0.6
+            end
+        end
+        
+        -- Направляем камеру на клона
+        workspace.CurrentCamera.CameraSubject = clone:FindFirstChild("Humanoid")
+        player.Character = clone
+        
+        -- Годмод (Локальное бессмертие от ножа)
+        godConnection = RunService.Stepped:Connect(function()
+            if character then
+                for _, child in pairs(character:GetChildren()) do
+                    if child:IsA("BasePart") then child.CanCollide = false end
+                end
+                
+                for _, plr in pairs(Players:GetPlayers()) do
+                    if plr ~= player and plr.Character and plr.Character:FindFirstChild("Knife") then
+                        local knife = plr.Character.Knife
+                        if knife:FindFirstChild("TouchInterest") then
+                            knife.TouchInterest:Destroy()
+                        end
+                    end
+                end
+            end
+        end)
+        
+        -- Главный цикл перемещения
+        loopConnection = RunService.Heartbeat:Connect(function()
+            if isInvis and character and character:FindFirstChild("HumanoidRootPart") and clone and clone:FindFirstChild("HumanoidRootPart") then
+                local realRoot = character.HumanoidRootPart
+                local cloneRoot = clone.HumanoidRootPart
+                
+                local targetItem = checkItems(cloneRoot)
+                
+                if targetItem then
+                    -- Прыгаем оригиналом на вещь для подбора
+                    realRoot.CFrame = targetItem.CFrame
+                else
+                    -- Сидим глубоко под землей
+                    realRoot.CFrame = cloneRoot.CFrame * CFrame.new(0, -150, 0)
+                end
+                realRoot.Velocity = Vector3.new(0, 0, 0)
+            end
+        end)
+        
     else
-        ToggleButton.Text = "Стать невидимым"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        stopInvis()
+        -- Безопасный выход без смерти
+        ToggleButton.Text = "ММ2 Инвиз + Годмод"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        
+        if loopConnection then loopConnection:Disconnect() end
+        if godConnection then godConnection:Disconnect() end
+        
+        player.Character = character
+        workspace.CurrentCamera.CameraSubject = character:FindFirstChild("Humanoid")
+        
+        if character and character:FindFirstChild("HumanoidRootPart") and clone and clone:FindFirstChild("HumanoidRootPart") then
+            character.HumanoidRootPart.CFrame = clone.HumanoidRootPart.CFrame
+        end
+        
+        if clone then
+            clone:Destroy()
+            clone = nil
+        end
+        
+        if character then
+            for _, child in pairs(character:GetChildren()) do
+                if child:IsA("BasePart") then child.CanCollide = true end
+            end
+        end
     end
 end)
