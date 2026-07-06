@@ -1,0 +1,104 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+
+-- Создание UI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = CoreGui
+ScreenGui.Name = "InvisGui"
+
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Parent = ScreenGui
+ToggleButton.Size = UDim2.new(0, 160, 0, 50)
+ToggleButton.Position = UDim2.new(0.05, 0, 0.4, 0)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.TextSize = 16
+ToggleButton.Text = "Стать невидимым"
+ToggleButton.Active = true
+ToggleButton.Draggable = true
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = ToggleButton
+
+-- Переменные состояния
+local invisible = false
+local clone = nil
+local loopConn = nil
+
+-- Функция включения невидимости
+local function startInvis()
+    character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+    
+    character.Archivable = true
+    clone = character:Clone()
+    clone.Parent = workspace
+    
+    -- Делаем клона полупрозрачным для себя
+    for _, part in pairs(clone:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            part.Transparency = 0.5
+            part.CanCollide = false
+        elseif part:IsA("Decal") then
+            part.Transparency = 0.5
+        end
+    end
+    
+    -- Прячем оригинального персонажа для сервера (опускаем вниз)
+    -- Физика перемещения HumanoidRootPart реплицируется на сервер!
+    loopConn = RunService.Heartbeat:Connect(function()
+        if character and character:FindFirstChild("HumanoidRootPart") and clone and clone:FindFirstChild("HumanoidRootPart") then
+            -- Переносим управление от клона к оригиналу, но оригинал топим под текстуры
+            local realRoot = character.HumanoidRootPart
+            local cloneRoot = clone.HumanoidRootPart
+            
+            -- Держим оригинал на 500 оригинальных единиц ниже клона (для сервера вы под землей)
+            realRoot.CFrame = cloneRoot.CFrame * CFrame.new(0, -500, 0)
+            realRoot.Velocity = Vector3.new(0, 0, 0)
+        end
+    end)
+    
+    -- Переключаем камеру на клона
+    workspace.CurrentCamera.CameraSubject = clone:FindFirstChild("Humanoid")
+    
+    -- Управление клоном (синхронизация движения)
+    -- Нажимаем клавиши на клоне, когда двигаемся
+    player.Character = clone
+end
+
+-- Функция выключения невидимости (БЕЗ СМЕРТИ)
+local function stopInvis()
+    if loopConn then loopConn:Disconnect() end
+    
+    player.Character = character
+    workspace.CurrentCamera.CameraSubject = character:FindFirstChild("Humanoid")
+    
+    if character and character:FindFirstChild("HumanoidRootPart") and clone and clone:FindFirstChild("HumanoidRootPart") then
+        -- Возвращаем оригинал на место клона
+        character.HumanoidRootPart.CFrame = clone.HumanoidRootPart.CFrame
+    end
+    
+    if clone then
+        clone:Destroy()
+        clone = nil
+    end
+end
+
+ToggleButton.MouseButton1Click:Connect(function()
+    invisible = not invisible
+    if invisible then
+        ToggleButton.Text = "Сделать видимым"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        startInvis()
+    else
+        ToggleButton.Text = "Стать невидимым"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        stopInvis()
+    end
+end)
